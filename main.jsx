@@ -1,0 +1,30 @@
+import React,{useEffect,useState} from 'react';
+import {createRoot} from 'react-dom/client';
+import {Phone,MapPin,LogIn,LogOut,Plus,Edit3,Trash2} from 'lucide-react';
+import {supabase} from './supabase';
+import './styles.css';
+
+const cats=['All','Mountain Bikes','City Bikes','Kids Cycles','Baby Products','Accessories'];
+
+function App(){
+ const [products,setProducts]=useState([]),[cat,setCat]=useState('All'),[search,setSearch]=useState('');
+ const [session,setSession]=useState(null),[admin,setAdmin]=useState(false),[login,setLogin]=useState(false);
+ const [email,setEmail]=useState(''),[password,setPassword]=useState(''),[editing,setEditing]=useState(null);
+
+ async function load(){const r=await supabase.from('products').select('*').eq('active',true).order('created_at',{ascending:false});setProducts(r.data||[])}
+ async function checkAdmin(s){if(!s){setAdmin(false);return} const r=await supabase.from('admins').select('user_id').eq('user_id',s.user.id).maybeSingle();setAdmin(!!r.data)}
+ useEffect(()=>{load();supabase.auth.getSession().then(({data})=>{setSession(data.session);checkAdmin(data.session)});const {data}=supabase.auth.onAuthStateChange((_e,s)=>{setSession(s);checkAdmin(s)});return()=>data.subscription.unsubscribe()},[]);
+ async function doLogin(e){e.preventDefault();const r=await supabase.auth.signInWithPassword({email,password});if(r.error)alert(r.error.message);else setLogin(false)}
+ async function save(e){e.preventDefault();const f=new FormData(e.currentTarget);const p={name:f.get('name'),category:f.get('category'),price:Number(f.get('price')||0),description:f.get('description')||'',stock_status:f.get('stock_status')||'In Stock',image_url:f.get('image_url')||'',active:true};const r=editing?await supabase.from('products').update(p).eq('id',editing.id):await supabase.from('products').insert(p);if(r.error)alert(r.error.message);else{setEditing(null);e.currentTarget.reset();load()}}
+ async function hide(id){if(confirm('Hide this product?')){const r=await supabase.from('products').update({active:false}).eq('id',id);if(r.error)alert(r.error.message);else load()}}
+ const shown=products.filter(p=>(cat==='All'||p.category===cat)&&((p.name||'').toLowerCase().includes(search.toLowerCase())));
+ return <><header><div className="nav"><img src="/images/logo.jpg" className="logo"/><div><b>MUKESH CYCLE</b><small>PREMIUM BICYCLES • SON AULI</small></div><nav><a href="#shop">Shop</a><a href="#location">Location</a>{admin?<button onClick={()=>document.getElementById('admin').scrollIntoView()}>Admin</button>:<button onClick={()=>setLogin(true)}><LogIn size={15}/> Owner</button>}</nav></div></header>
+ <main><section className="hero"><img src="/images/shop.jpg"/><div className="shade"/><div className="heroText"><span>SINCE 1980 • TRUSTED SERVICE</span><h1>Ride More.<em> Live More.</em></h1><p>Premium bicycles, kids cycles and baby products at Sonauli.</p><div><a className="green" href="#shop">Explore Shop</a><a className="outline" href="tel:9453920362"><Phone size={17}/> Call India</a></div></div></section>
+ <section className="trust"><b>🚲 Premium Cycles</b><b>🛠️ Expert Service</b><b>🧸 Babyland</b><b>🇮🇳 🇳🇵 India & Nepal</b></section>
+ <section id="shop" className="section"><div className="head"><div><span>OUR COLLECTION</span><h2>Find Your Perfect Ride</h2></div><input placeholder="Search products" value={search} onChange={e=>setSearch(e.target.value)}/></div><div className="cats">{cats.map(c=><button className={cat===c?'on':''} onClick={()=>setCat(c)}>{c}</button>)}</div><div className="grid">{shown.map(p=><article className="card"><div className="photo">{p.image_url?<img src={p.image_url}/>:<div>🚲</div>}<label>{p.stock_status}</label></div><div className="body"><small>{p.category}</small><h3>{p.name}</h3><p>{p.description}</p><strong>{Number(p.price)>0?'₹'+Number(p.price).toLocaleString('en-IN'):'Price on request'}</strong>{admin&&<div className="edit"><button onClick={()=>setEditing(p)}><Edit3 size={14}/> Edit</button><button onClick={()=>hide(p.id)}><Trash2 size={14}/> Hide</button></div>}</div></article>)}</div>{!shown.length&&<p className="muted">No products added yet. Use Owner → Admin to add the first products.</p>}</section>
+ {admin&&<section id="admin" className="section admin"><div className="head"><div><span>OWNER PANEL</span><h2>{editing?'Edit Product':'Add Product'}</h2></div><button onClick={()=>supabase.auth.signOut()}><LogOut size={15}/> Logout</button></div><form onSubmit={save}><input name="name" required placeholder="Product name" defaultValue={editing?.name||''}/><select name="category" defaultValue={editing?.category||'Mountain Bikes'}>{cats.slice(1).map(c=><option>{c}</option>)}</select><input name="price" type="number" min="0" placeholder="Price ₹" defaultValue={editing?.price||''}/><input name="stock_status" placeholder="In Stock" defaultValue={editing?.stock_status||'In Stock'}/><input name="image_url" placeholder="Product image URL" defaultValue={editing?.image_url||''}/><textarea name="description" placeholder="Description" defaultValue={editing?.description||''}/><button className="green" type="submit"><Plus size={15}/> {editing?'Save changes':'Add product'}</button></form></section>}
+ <section id="location" className="location"><div><span>VISIT US</span><h2>Mukesh Cycle Sonauli</h2><p><MapPin size={18}/> Near Ram Janki Mandir, Indo-Nepal Border, Main Road, Sonauli</p><div className="phones"><a href="tel:9453920362"><Phone/> India 9453920362</a><a href="tel:9814453687"><Phone/> Nepal 9814453687</a></div></div><img src="/images/shop.jpg"/></section></main>
+ <footer><img src="/images/logo.jpg"/> © 2026 Mukesh Cycle Sonauli</footer>
+ {login&&<div className="modal"><form onSubmit={doLogin}><button type="button" className="close" onClick={()=>setLogin(false)}>×</button><h2>Owner Login</h2><input type="email" required placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)}/><input type="password" required placeholder="Password" value={password} onChange={e=>setPassword(e.target.value)}/><button className="green">Login</button></form></div>}</>
+}
+createRoot(document.getElementById('root')).render(<App/>);
